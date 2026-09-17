@@ -17,7 +17,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="hero"><div><div class="title">Aligner Calendar</div><div class="sub">Automatic 10-day aligner change schedule</div></div><div class="badge">Started 9 Sep 2026</div></div>
+    <div class="hero"><div><div class="title">Aligner Calendar</div><div class="sub">Automatic 10-day aligner change schedule · 40 trays total</div></div><div class="badge">Started 10 Sep 2026 · 40 trays</div></div>
     <div class="grid">
       <section class="card">
         <div class="statgrid">
@@ -29,7 +29,7 @@
         <div class="calendar-head"><div class="month" id="monthLabel"></div><div class="buttons"><button class="btn" id="prev">‹</button><button class="btn" id="todayBtn">Today</button><button class="btn" id="next">›</button></div></div>
         <div class="week"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
         <div class="days" id="calendar"></div>
-        <div class="note">Green days are aligner change days. The highlighted day is today. Schedule is calculated from 9 September 2026 with a 10-day cycle.</div>
+        <div class="note">Green days are aligner change days. The highlighted day is today. Schedule starts on 10 September 2026, uses a 10-day cycle, and ends after Tray 40.</div>
       </section>
       <section class="card">
         <div class="label">Upcoming changes</div>
@@ -44,6 +44,7 @@
   // ==============================
   const FIRST_START = '2026-09-10';
   const DAYS_PER_TRAY = 10;
+  const TOTAL_TRAYS = 40;
   // ==============================
 
   const firstStart = new Date(FIRST_START + 'T00:00:00');
@@ -52,10 +53,14 @@
   const today = new Date(); today.setHours(0,0,0,0);
   let view = new Date(today.getFullYear(),today.getMonth(),1);
 
+  const finalEnd = new Date(firstStart);
+  finalEnd.setDate(finalEnd.getDate() + TOTAL_TRAYS * DAYS_PER_TRAY - 1);
+
   function diffDays(a,b){return Math.floor((a-b)/86400000)}
   function trayForDate(d){
     const n=diffDays(d,firstStart); if(n<0)return null;
-    return Math.floor(n/DAYS_PER_TRAY)+1;
+    const tray=Math.floor(n/DAYS_PER_TRAY)+1;
+    return tray>TOTAL_TRAYS ? null : tray;
   }
   function startForTray(n){const d=new Date(firstStart); d.setDate(d.getDate()+(n-1)*DAYS_PER_TRAY); return d}
   function pad(n){return String(n).padStart(2,'0')}
@@ -63,12 +68,13 @@
 
   function renderStats(){
     const n=trayForDate(today);
-    if(!n){document.getElementById('currentTray').textContent='Before start'; document.getElementById('dayInTray').textContent='—'; document.getElementById('nextChange').textContent=fmt.format(firstStart); return;}
+    if(today < firstStart){document.getElementById('currentTray').textContent='Before start'; document.getElementById('dayInTray').textContent='—'; document.getElementById('nextChange').textContent=fmt.format(firstStart); return;}
+    if(today > finalEnd){document.getElementById('currentTray').textContent='Completed'; document.getElementById('dayInTray').textContent='40 / 40'; document.getElementById('nextChange').textContent='—'; return;}
     const start=startForTray(n), next=new Date(start); next.setDate(next.getDate()+DAYS_PER_TRAY);
     const day=diffDays(today,start)+1;
     document.getElementById('currentTray').textContent=`Tray ${n}`;
     document.getElementById('dayInTray').textContent=`${day} / ${DAYS_PER_TRAY}`;
-    document.getElementById('nextChange').textContent=fmt.format(next);
+    document.getElementById('nextChange').textContent=n===TOTAL_TRAYS?'Finished':fmt.format(next);
   }
 
   function renderCalendar(){
@@ -99,7 +105,9 @@
     const box=document.getElementById('timeline');box.innerHTML='';
     let startTray=Math.max(1,(trayForDate(today)||1)-1);
     for(let i=0;i<8;i++){
-      const n=startTray+i,start=startForTray(n),end=new Date(start);end.setDate(end.getDate()+DAYS_PER_TRAY-1);
+      const n=startTray+i;
+      if(n>TOTAL_TRAYS) break;
+      const start=startForTray(n),end=new Date(start);end.setDate(end.getDate()+DAYS_PER_TRAY-1);
       const item=document.createElement('div'); item.className='item';
       const isCurrent=trayForDate(today)===n; if(isCurrent)item.classList.add('current');
       item.innerHTML=`<div><div class="tray">Tray ${n}${isCurrent?' · Current':''}</div><div style="font-size:13px;color:#64748b;margin-top:3px">${n===1?'First aligner':'Change day'}</div></div><div class="date">${fmt.format(start)}<br>to ${fmt.format(end)}</div>`;

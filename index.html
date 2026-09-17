@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <title>Aligner Calendar</title>
+  <style>
+    :root{--bg:#f4f7fb;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--accent:#2563eb;--accent2:#dbeafe;--today:#fef3c7;--change:#dcfce7;}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px 16px 40px}.hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:20px}.title{font-size:clamp(28px,5vw,44px);font-weight:800;letter-spacing:-.03em}.sub{color:var(--muted);margin-top:6px}.badge{display:inline-flex;align-items:center;background:#0f172a;color:#fff;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700;white-space:nowrap}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 8px 30px rgba(15,23,42,.06);padding:20px}.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{border:1px solid var(--line);border-radius:16px;padding:14px}.label{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}.value{font-size:22px;font-weight:800;margin-top:5px}
+    .calendar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.month{font-size:20px;font-weight:800}.buttons{display:flex;gap:8px}.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 11px;cursor:pointer;font-weight:700}.btn:hover{background:#f8fafc}
+    .week,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}.week div{text-align:center;color:var(--muted);font-size:12px;font-weight:800;padding:4px}.day{min-height:76px;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff;position:relative}.day.muted{opacity:.35}.day.today{outline:2px solid #f59e0b;outline-offset:-2px;background:var(--today)}.day.change{background:var(--change);border-color:#86efac}.num{font-weight:800}.tag{display:block;font-size:11px;margin-top:7px;line-height:1.2}.tag b{font-weight:800}.timeline{display:flex;flex-direction:column;gap:10px;margin-top:12px;max-height:430px;overflow:auto}.item{display:flex;justify-content:space-between;gap:14px;border:1px solid var(--line);border-radius:14px;padding:12px}.item.current{border-color:#60a5fa;background:var(--accent2)}.tray{font-weight:800}.date{color:var(--muted);font-size:13px;text-align:right}.note{margin-top:16px;font-size:12px;color:var(--muted);line-height:1.5}.footer{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
+    @media(max-width:760px){.hero{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.statgrid{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:1/-1}.day{min-height:64px;padding:6px}.tag{font-size:10px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero"><div><div class="title">Aligner Calendar</div><div class="sub">Automatic 10-day aligner change schedule</div></div><div class="badge">Started 9 Sep 2026</div></div>
+    <div class="grid">
+      <section class="card">
+        <div class="statgrid">
+          <div class="stat"><div class="label">Current tray</div><div class="value" id="currentTray">—</div></div>
+          <div class="stat"><div class="label">Day in tray</div><div class="value" id="dayInTray">—</div></div>
+          <div class="stat"><div class="label">Next change</div><div class="value" id="nextChange">—</div></div>
+        </div>
+        <div style="height:18px"></div>
+        <div class="calendar-head"><div class="month" id="monthLabel"></div><div class="buttons"><button class="btn" id="prev">‹</button><button class="btn" id="todayBtn">Today</button><button class="btn" id="next">›</button></div></div>
+        <div class="week"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+        <div class="days" id="calendar"></div>
+        <div class="note">Green days are aligner change days. The highlighted day is today. Schedule is calculated from 9 September 2026 with a 10-day cycle.</div>
+      </section>
+      <section class="card">
+        <div class="label">Upcoming changes</div>
+        <div class="timeline" id="timeline"></div>
+        <div class="footer">This is a personal reminder tool, not medical advice. Follow your orthodontist's instructions if they differ.</div>
+      </section>
+    </div>
+  </div>
+<script>
+  // ==============================
+  // CHANGE THESE VALUES IN THE CODE
+  // ==============================
+  const FIRST_START = '2026-09-09';
+  const DAYS_PER_TRAY = 10;
+  // ==============================
+
+  const firstStart = new Date(FIRST_START + 'T00:00:00');
+  const fmt = new Intl.DateTimeFormat('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  const monthFmt = new Intl.DateTimeFormat('en-IN',{month:'long',year:'numeric'});
+  const today = new Date(); today.setHours(0,0,0,0);
+  let view = new Date(today.getFullYear(),today.getMonth(),1);
+
+  function diffDays(a,b){return Math.floor((a-b)/86400000)}
+  function trayForDate(d){
+    const n=diffDays(d,firstStart); if(n<0)return null;
+    return Math.floor(n/DAYS_PER_TRAY)+1;
+  }
+  function startForTray(n){const d=new Date(firstStart); d.setDate(d.getDate()+(n-1)*DAYS_PER_TRAY); return d}
+  function pad(n){return String(n).padStart(2,'0')}
+  function iso(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+
+  function renderStats(){
+    const n=trayForDate(today);
+    if(!n){document.getElementById('currentTray').textContent='Before start'; document.getElementById('dayInTray').textContent='—'; document.getElementById('nextChange').textContent=fmt.format(firstStart); return;}
+    const start=startForTray(n), next=new Date(start); next.setDate(next.getDate()+DAYS_PER_TRAY);
+    const day=diffDays(today,start)+1;
+    document.getElementById('currentTray').textContent=`Tray ${n}`;
+    document.getElementById('dayInTray').textContent=`${day} / ${DAYS_PER_TRAY}`;
+    document.getElementById('nextChange').textContent=fmt.format(next);
+  }
+
+  function renderCalendar(){
+    document.getElementById('monthLabel').textContent=monthFmt.format(view);
+    const box=document.getElementById('calendar'); box.innerHTML='';
+    const y=view.getFullYear(), m=view.getMonth();
+    const first=new Date(y,m,1), last=new Date(y,m+1,0);
+    for(let i=0;i<first.getDay();i++){const e=document.createElement('div');e.className='day muted';box.appendChild(e)}
+    for(let d=1;d<=last.getDate();d++){
+      const date=new Date(y,m,d); const e=document.createElement('div'); e.className='day';
+      if(iso(date)===iso(today))e.classList.add('today');
+      const n=trayForDate(date);
+      if(n){
+        const start=startForTray(n); if(iso(start)===iso(date)) e.classList.add('change');
+      }
+      const num=document.createElement('div');num.className='num';num.textContent=d;e.appendChild(num);
+      if(n){
+        const start=startForTray(n);
+        const tag=document.createElement('span');tag.className='tag';
+        tag.innerHTML=iso(start)===iso(date)?`<b>Tray ${n}</b> change`:`Tray ${n}`;
+        e.appendChild(tag);
+      }
+      box.appendChild(e)
+    }
+  }
+
+  function renderTimeline(){
+    const box=document.getElementById('timeline');box.innerHTML='';
+    let startTray=Math.max(1,(trayForDate(today)||1)-1);
+    for(let i=0;i<8;i++){
+      const n=startTray+i,start=startForTray(n),end=new Date(start);end.setDate(end.getDate()+DAYS_PER_TRAY-1);
+      const item=document.createElement('div'); item.className='item';
+      const isCurrent=trayForDate(today)===n; if(isCurrent)item.classList.add('current');
+      item.innerHTML=`<div><div class="tray">Tray ${n}${isCurrent?' · Current':''}</div><div style="font-size:13px;color:#64748b;margin-top:3px">${n===1?'First aligner':'Change day'}</div></div><div class="date">${fmt.format(start)}<br>to ${fmt.format(end)}</div>`;
+      box.appendChild(item)
+    }
+  }
+
+  document.getElementById('prev').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);renderCalendar()};
+  document.getElementById('next').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);renderCalendar()};
+  document.getElementById('todayBtn').onclick=()=>{view=new Date(today.getFullYear(),today.getMonth(),1);renderCalendar()};
+  renderStats();renderCalendar();renderTimeline();
+</script>
+</body>
+</html>
